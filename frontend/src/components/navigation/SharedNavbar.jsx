@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { APP_ROUTES, PRIMARY_NAV_ITEMS } from "../../constants/routes";
+import { TiWeatherSunny } from "react-icons/ti";
+import { TbMoon } from "react-icons/tb";
+
 import { useTheme } from "../../context/ThemeContext";
 
 export default function SharedNavbar() {
@@ -42,13 +45,13 @@ export default function SharedNavbar() {
         <div className="hidden items-center gap-3 md:flex">
           <button
             onClick={toggleTheme}
-            className={`rounded-full border px-3 py-2 text-sm font-medium transition ${
+            className={`rounded-full cursor-pointer border px-2 py-2 text-sm font-medium transition ${
               isDark
                 ? "border-stone-700 bg-stone-900 text-stone-200 hover:bg-stone-800"
                 : "border-stone-300 bg-white text-stone-700 hover:bg-stone-50"
             }`}
           >
-            {isDark ? "Light" : "Dark"}
+            {isDark ? <TiWeatherSunny /> : <TbMoon />}
           </button>
           <Link
             to={APP_ROUTES.login}
