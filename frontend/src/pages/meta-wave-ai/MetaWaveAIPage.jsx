@@ -131,7 +131,7 @@ export default function MetaWaveAIPage() {
   };
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-[#140f0d] text-stone-100" : "bg-[#F6F1E8]"}`}>
+    <div className={`min-h-screen selection:bg-white selection:text-stone-900 ${isDark ? "bg-[#140f0d] text-stone-100" : "bg-[#F6F1E8]"}`}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap');
         * { font-family: 'DM Sans', sans-serif; }

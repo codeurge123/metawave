@@ -170,7 +170,7 @@ function Sidebar({ mode, setMode }) {
   ];
 
   return (
-    <aside className={`hidden h-screen w-72 shrink-0 px-8 py-8 lg:flex lg:flex-col lg:sticky lg:top-0 ${isDark ? "border-r border-stone-800 bg-[#181411]" : "border-r border-stone-200 bg-[#F5F0E8]"}`}>
+    <aside className={`hidden selection:bg-white selection:text-stone-900 h-screen w-72 shrink-0 px-8 py-8 lg:flex lg:flex-col lg:sticky lg:top-0 ${isDark ? "border-r border-stone-800 bg-[#181411]" : "border-r border-stone-200 bg-[#F5F0E8]"}`}>
       <div>
         <div className={`text-[1.7rem] font-bold tracking-tight ${isDark ? "text-stone-100" : "text-stone-900"}`}>Analyser</div>
         <div className={`mt-3 text-[10px] font-bold leading-5 tracking-[0.25em] ${isDark ? "text-stone-500" : "text-stone-400"}`}>
@@ -226,7 +226,7 @@ function ConfigPanel({ params, setParams, onRun, onReset, running, mode }) {
         ];
 
   return (
-    <section className="rounded-3xl border border-stone-200 bg-[#FDFAF5] p-5 shadow-sm">
+    <section className="rounded-3xl selection:bg-white selection:text-stone-900 border border-stone-200 bg-[#FDFAF5] p-5 shadow-sm">
       <div className="mb-5 flex items-center gap-3">
         <span className="text-lg text-[#7A5C1E]">≡</span>
         <h2 className="font-display text-xl font-bold text-stone-900">Configuration</h2>
@@ -274,7 +274,7 @@ function ConfigPanel({ params, setParams, onRun, onReset, running, mode }) {
 
 function MetricCard({ label, value, badge, accent = false }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-[#FDFAF5] p-5">
+    <div className="rounded-2xl border selection:bg-white selection:text-stone-900 border-stone-200 bg-[#FDFAF5] p-5">
       <div className="text-[10px] font-semibold tracking-[0.18em] text-stone-400">{label}</div>
       <div className="mt-3 flex items-end gap-3">
         <span className="font-display text-4xl font-black text-stone-900">{value}</span>
@@ -341,7 +341,7 @@ export default function AntennaAnalyzerPage() {
   const s11Good = results && Number.parseFloat(results.S11) < -10;
 
   return (
-    <div className={`min-h-screen ${isDark ? "bg-[#140f0d] text-stone-100" : "bg-[#F5F0E8]"}`}>
+    <div className={`min-h-screen selection:bg-white selection:text-stone-900 ${isDark ? "bg-[#140f0d] text-stone-100" : "bg-[#F5F0E8]"}`}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&display=swap');
         * { font-family: 'DM Sans', sans-serif; }
