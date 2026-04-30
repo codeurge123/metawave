@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-this-to-a-long-random-secret"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://metawave.codeurge.online"
     gemini_api_key: Optional[str] = None
     gemini_model: str = "gemini-2.5-flash"
 
