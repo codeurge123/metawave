@@ -1,14 +1,145 @@
 import { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { APP_ROUTES, PRIMARY_NAV_ITEMS } from "../../constants/routes";
 import { TiWeatherSunny } from "react-icons/ti";
 import { TbMoon } from "react-icons/tb";
 
 import { useTheme } from "../../context/ThemeContext";
+import { clearSession, getStoredUser, getToken, updatePassword } from "../../services/api";
+
+function ProfileMenu({ isDark, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({ current_password: "", new_password: "" });
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const user = getStoredUser();
+
+  const updateField = (field, value) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+  };
+
+  const handlePasswordUpdate = async (event) => {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await updatePassword(formData);
+      setMessage(response.message);
+      setFormData({ current_password: "", new_password: "" });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((current) => !current)}
+        className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+          isDark ? "bg-amber-700 text-white hover:bg-amber-600" : "bg-stone-900 text-white hover:bg-stone-700"
+        }`}
+      >
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs">
+          {user?.username?.charAt(0)?.toUpperCase() || "U"}
+        </span>
+        Profile
+      </button>
+
+      {open && (
+        <div
+          className={`absolute right-0 mt-3 w-80 rounded-2xl border p-5 shadow-2xl ${
+            isDark ? "border-stone-700 bg-stone-900 text-stone-100" : "border-stone-200 bg-white text-stone-900"
+          }`}
+        >
+          <div className="mb-4 border-b border-stone-200/20 pb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#A67C2E]">User Profile</p>
+            <h3 className="mt-2 text-lg font-semibold">{user?.username}</h3>
+            <p className={`mt-1 text-sm ${isDark ? "text-stone-400" : "text-stone-500"}`}>{user?.email}</p>
+          </div>
+
+          <form onSubmit={handlePasswordUpdate} className="space-y-3">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[#A67C2E]">Current Password</label>
+              <input
+                type="password"
+                value={formData.current_password}
+                onChange={(event) => updateField("current_password", event.target.value)}
+                required
+                className={`mt-2 w-full rounded-md p-3 text-sm outline-none focus:ring-2 focus:ring-[#7a5c00]/30 ${
+                  isDark ? "bg-stone-800 text-stone-100" : "bg-gray-100"
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[#A67C2E]">New Password</label>
+              <input
+                type="password"
+                value={formData.new_password}
+                onChange={(event) => updateField("new_password", event.target.value)}
+                required
+                minLength="8"
+                className={`mt-2 w-full rounded-md p-3 text-sm outline-none focus:ring-2 focus:ring-[#7a5c00]/30 ${
+                  isDark ? "bg-stone-800 text-stone-100" : "bg-gray-100"
+                }`}
+              />
+            </div>
+
+            {message && <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p>}
+            {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full rounded-md bg-[#7a5c00] py-3 text-sm font-semibold text-white transition hover:bg-[#6a4f00] disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {isSubmitting ? "Updating..." : "Update Password"}
+            </button>
+          </form>
+
+          <button
+            onClick={onLogout}
+            className={`mt-4 w-full rounded-md border py-3 text-sm font-medium transition ${
+              isDark ? "border-stone-700 text-stone-300 hover:bg-stone-800" : "border-stone-200 text-stone-700 hover:bg-stone-50"
+            }`}
+          >
+            Logout
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SharedNavbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(Boolean(getToken()));
   const { isDark, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+
+  const protectedRoutes = new Set([APP_ROUTES.analysis, APP_ROUTES.ai]);
+
+  const handleNavClick = (event, to) => {
+    if (!isLoggedIn && protectedRoutes.has(to)) {
+      event.preventDefault();
+      setMenuOpen(false);
+      navigate(APP_ROUTES.signup);
+      return;
+    }
+
+    setMenuOpen(false);
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    setIsLoggedIn(false);
+    setMenuOpen(false);
+  };
 
   return (
     <nav
@@ -29,6 +160,7 @@ export default function SharedNavbar() {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={(event) => handleNavClick(event, item.to)}
               className={({ isActive }) =>
                 `text-sm tracking-wide transition-colors ${
                   isActive
@@ -53,24 +185,30 @@ export default function SharedNavbar() {
           >
             {isDark ? <TiWeatherSunny /> : <TbMoon />}
           </button>
-          <Link
-            to={APP_ROUTES.login}
-            className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-              isDark
-                ? "border-stone-700 text-stone-200 hover:bg-stone-900"
-                : "border-stone-300 text-stone-700 hover:bg-white"
-            }`}
-          >
-            Login
-          </Link>
-          <Link
-            to={APP_ROUTES.signup}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-              isDark ? "bg-amber-700 text-white hover:bg-amber-600" : "bg-stone-900 text-white hover:bg-stone-700"
-            }`}
-          >
-            Sign Up
-          </Link>
+          {isLoggedIn ? (
+            <ProfileMenu isDark={isDark} onLogout={handleLogout} />
+          ) : (
+            <>
+              <Link
+                to={APP_ROUTES.login}
+                className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                  isDark
+                    ? "border-stone-700 text-stone-200 hover:bg-stone-900"
+                    : "border-stone-300 text-stone-700 hover:bg-white"
+                }`}
+              >
+                Login
+              </Link>
+              <Link
+                to={APP_ROUTES.signup}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  isDark ? "bg-amber-700 text-white hover:bg-amber-600" : "bg-stone-900 text-white hover:bg-stone-700"
+                }`}
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
@@ -100,18 +238,26 @@ export default function SharedNavbar() {
             <NavLink
               key={item.to}
               to={item.to}
-              onClick={() => setMenuOpen(false)}
+              onClick={(event) => handleNavClick(event, item.to)}
               className={`block w-full text-left text-sm font-medium ${isDark ? "text-stone-200" : "text-stone-700"}`}
             >
               {item.label}
             </NavLink>
           ))}
-          <Link to={APP_ROUTES.login} onClick={() => setMenuOpen(false)} className={`block text-sm ${isDark ? "text-stone-200" : "text-stone-700"}`}>
-            Login
-          </Link>
-          <Link to={APP_ROUTES.signup} onClick={() => setMenuOpen(false)} className={`block text-sm ${isDark ? "text-stone-200" : "text-stone-700"}`}>
-            Sign Up
-          </Link>
+          {isLoggedIn ? (
+            <button onClick={handleLogout} className={`block text-sm ${isDark ? "text-stone-200" : "text-stone-700"}`}>
+              Logout
+            </button>
+          ) : (
+            <>
+              <Link to={APP_ROUTES.login} onClick={() => setMenuOpen(false)} className={`block text-sm ${isDark ? "text-stone-200" : "text-stone-700"}`}>
+                Login
+              </Link>
+              <Link to={APP_ROUTES.signup} onClick={() => setMenuOpen(false)} className={`block text-sm ${isDark ? "text-stone-200" : "text-stone-700"}`}>
+                Sign Up
+              </Link>
+            </>
+          )}
         </div>
       )}
     </nav>

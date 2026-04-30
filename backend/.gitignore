@@ -1,5 +1,9 @@
-node_modules/
+__pycache__/
+.pycache/
+*.py[cod]
+*.sqlite
+*.db
 .env
-dist/
-coverage/
-.DS_Store
+.venv/
+venv/
+.pytest_cache/

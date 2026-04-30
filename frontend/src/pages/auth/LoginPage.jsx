@@ -1,9 +1,35 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { APP_ROUTES } from "../../constants/routes";
 import { useTheme } from "../../context/ThemeContext";
+import { saveSession, signin } from "../../services/api";
 
 const LoginPage = () => {
   const { isDark } = useTheme();
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const updateField = (field, value) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await signin(formData);
+      saveSession(response);
+      navigate(APP_ROUTES.ai);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center px-4 ${isDark ? "bg-[#140f0d]" : "bg-[#f5f2ea]"}`}>
@@ -22,12 +48,15 @@ const LoginPage = () => {
           Please enter your credentials to proceed.
         </p>
 
-        <form className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="text-xs font-semibold tracking-widest text-[#7a5c00]">EMAIL ADDRESS</label>
             <input
               type="email"
+              value={formData.email}
+              onChange={(event) => updateField("email", event.target.value)}
               placeholder="name@company.com"
+              required
               className={`mt-2 w-full rounded-md p-3 outline-none focus:ring-2 focus:ring-[#7a5c00]/30 ${isDark ? "bg-stone-800 text-stone-100" : "bg-gray-100"}`}
             />
           </div>
@@ -42,16 +71,26 @@ const LoginPage = () => {
 
             <input
               type="password"
+              value={formData.password}
+              onChange={(event) => updateField("password", event.target.value)}
               placeholder="••••••••"
+              required
               className={`mt-2 w-full rounded-md p-3 outline-none focus:ring-2 focus:ring-[#7a5c00]/30 ${isDark ? "bg-stone-800 text-stone-100" : "bg-gray-100"}`}
             />
           </div>
 
+          {error && (
+            <p className={`rounded-md px-3 py-2 text-sm ${isDark ? "bg-red-950/40 text-red-200" : "bg-red-50 text-red-700"}`}>
+              {error}
+            </p>
+          )}
+
           <button
             type="submit"
-            className="w-full rounded-md bg-[#7a5c00] py-3 font-semibold text-white shadow-md transition hover:bg-[#6a4f00]"
+            disabled={isSubmitting}
+            className="w-full rounded-md bg-[#7a5c00] py-3 font-semibold text-white shadow-md transition hover:bg-[#6a4f00] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Sign In to Analyzer
+            {isSubmitting ? "Signing In..." : "Sign In to Analyzer"}
           </button>
         </form>
 

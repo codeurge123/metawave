@@ -3,19 +3,13 @@ import { Link } from "react-router-dom";
 import SharedNavbar from "../../components/navigation/SharedNavbar";
 import { APP_ROUTES } from "../../constants/routes";
 import { useTheme } from "../../context/ThemeContext";
+import { getToken, sendChatMessage } from "../../services/api";
 
 const SUGGESTED_PROMPTS = [
   "Compare FR4 vs Rogers 4350B",
   "Explain this S11 curve",
   "Suggest a beam-steering setup",
   "Optimize for 5.8 GHz Wi-Fi",
-];
-
-const RESPONSES = [
-  "The Rogers substrate will usually reduce dielectric loading, so resonance tends to shift upward unless you lengthen the radiator slightly.",
-  "If the match is poor, try adjusting feed position first. That usually gives a faster improvement than changing the whole geometry.",
-  "For better gain, keep element spacing close to half wavelength and make sure the substrate loss tangent stays low.",
-  "When bandwidth is the issue, substrate height and dielectric constant usually matter more than small dimensional tweaks.",
 ];
 
 function EmptyState() {
@@ -72,41 +66,68 @@ export default function MetaWaveAIPage() {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [error, setError] = useState("");
   const endRef = useRef(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const sendMessage = (text) => {
+  const sendMessage = async (text) => {
     const content = text.trim();
 
-    if (!content) {
+    if (!content || isTyping) {
       return;
     }
 
-    setMessages((current) => [
-      ...current,
-      {
-        id: `${Date.now()}-user`,
-        role: "user",
-        content,
-      },
-    ]);
+    if (!getToken()) {
+      setError("Please sign in before chatting with MetaWave AI.");
+      return;
+    }
+
+    const userMessage = {
+      id: `${Date.now()}-user`,
+      role: "user",
+      content,
+    };
+
+    const history = messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+
+    setMessages((current) => [...current, userMessage]);
     setInputValue("");
+    setError("");
     setIsTyping(true);
 
-    window.setTimeout(() => {
+    try {
+      const response = await sendChatMessage({ message: content, history });
       setMessages((current) => [
         ...current,
         {
           id: `${Date.now()}-assistant`,
           role: "assistant",
-          content: RESPONSES[Math.floor(Math.random() * RESPONSES.length)],
+          content: response.reply,
         },
       ]);
+    } catch (requestError) {
+      setError(requestError.message);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `${Date.now()}-assistant-error`,
+          role: "assistant",
+          content: "I could not reach MetaWave AI right now. Check that the backend is running and your Gemini key is configured.",
+        },
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 900);
+    }
+  };
+
+  const handleSuggestion = (prompt) => {
+    setInputValue(prompt);
   };
 
   return (
@@ -191,13 +212,19 @@ export default function MetaWaveAIPage() {
                 {SUGGESTED_PROMPTS.map((prompt) => (
                   <button
                     key={prompt}
-                    onClick={() => setInputValue(prompt)}
+                    onClick={() => handleSuggestion(prompt)}
                     className={`rounded-full border px-4 py-2 text-xs font-medium transition ${isDark ? "border-stone-700 bg-stone-900 text-stone-300 hover:bg-stone-800" : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50"}`}
                   >
                     {prompt}
                   </button>
                 ))}
               </div>
+
+              {error && (
+                <p className={`mb-4 rounded-md px-4 py-3 text-sm ${isDark ? "bg-red-950/40 text-red-200" : "bg-red-50 text-red-700"}`}>
+                  {error}
+                </p>
+              )}
 
               <div className={`flex flex-col gap-3 rounded-[28px] border px-4 py-4 shadow-[0_10px_24px_rgba(0,0,0,0.03)] sm:flex-row sm:items-center ${isDark ? "border-stone-700 bg-stone-900" : "border-stone-200 bg-white"}`}>
                 <button className={`flex h-11 w-11 items-center justify-center rounded-full text-xl ${isDark ? "bg-stone-800 text-stone-400" : "bg-stone-100 text-stone-500"}`}>
@@ -227,7 +254,8 @@ export default function MetaWaveAIPage() {
                   </Link>
                   <button
                     onClick={() => sendMessage(inputValue)}
-                    className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A67C2E] text-xl text-white transition hover:bg-[#8E671F]"
+                    disabled={isTyping}
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-[#A67C2E] text-xl text-white transition hover:bg-[#8E671F] disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     ↑
                   </button>

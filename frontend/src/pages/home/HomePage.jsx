@@ -85,7 +85,7 @@ export default function HomePage() {
 
   return (
     <div
-      className={`min-h-screen font-serif ${isDark ? "bg-[#140f0d] text-stone-100" : "bg-[#F5F0E8] text-stone-900"}`}
+      className={`min-h-screen selection:bg-white selection:text-stone-900 font-serif ${isDark ? "bg-[#140f0d] text-stone-100" : "bg-[#F5F0E8] text-stone-900"}`}
       style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
     >
       <style>{`

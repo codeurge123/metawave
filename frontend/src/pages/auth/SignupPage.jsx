@@ -1,11 +1,51 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { APP_ROUTES } from "../../constants/routes";
 import { useTheme } from "../../context/ThemeContext";
+import { saveSession, signup } from "../../services/api";
 
 const SignupPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const { isDark } = useTheme();
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    password: "",
+    acceptedTerms: false,
+  });
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const updateField = (field, value) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+
+    if (!formData.acceptedTerms) {
+      setError("Please accept the terms before creating an account.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await signup({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+      });
+      saveSession(response);
+      navigate(APP_ROUTES.ai);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className={`relative flex min-h-screen items-center justify-center px-4 ${isDark ? "bg-[#140f0d]" : "bg-[#f5f2ea]"}`}>
@@ -30,12 +70,16 @@ const SignupPage = () => {
           <div className={`h-px flex-1 ${isDark ? "bg-stone-700" : "bg-gray-200"}`}></div>
         </div>
 
-        <form className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="text-xs font-semibold tracking-widest text-[#7a5c00]">USERNAME</label>
             <input
               type="text"
+              value={formData.username}
+              onChange={(event) => updateField("username", event.target.value)}
               placeholder="e.g. meta_architect"
+              required
+              minLength="3"
               className={`mt-2 w-full rounded-md p-3 outline-none focus:ring-2 focus:ring-[#7a5c00]/30 ${isDark ? "bg-stone-800 text-stone-100" : "bg-gray-100"}`}
             />
           </div>
@@ -44,7 +88,10 @@ const SignupPage = () => {
             <label className="text-xs font-semibold tracking-widest text-[#7a5c00]">EMAIL ADDRESS</label>
             <input
               type="email"
+              value={formData.email}
+              onChange={(event) => updateField("email", event.target.value)}
               placeholder="precision@metawave.io"
+              required
               className={`mt-2 w-full rounded-md p-3 outline-none focus:ring-2 focus:ring-[#7a5c00]/30 ${isDark ? "bg-stone-800 text-stone-100" : "bg-gray-100"}`}
             />
           </div>
@@ -54,7 +101,11 @@ const SignupPage = () => {
             <div className="relative mt-2">
               <input
                 type={showPassword ? "text" : "password"}
+                value={formData.password}
+                onChange={(event) => updateField("password", event.target.value)}
                 placeholder="••••••••••••"
+                required
+                minLength="8"
                 className={`w-full rounded-md p-3 outline-none focus:ring-2 focus:ring-[#7a5c00]/30 ${isDark ? "bg-stone-800 text-stone-100" : "bg-gray-100"}`}
               />
               <span
@@ -65,12 +116,17 @@ const SignupPage = () => {
               </span>
             </div>
             <p className={`mt-2 text-xs ${isDark ? "text-stone-500" : "text-gray-400"}`}>
-              Must contain at least 12 characters including one special metric.
+              Must contain at least 8 characters.
             </p>
           </div>
 
           <div className={`flex items-start gap-2 text-sm ${isDark ? "text-stone-400" : "text-gray-600"}`}>
-            <input type="checkbox" className="mt-1" />
+            <input
+              type="checkbox"
+              checked={formData.acceptedTerms}
+              onChange={(event) => updateField("acceptedTerms", event.target.checked)}
+              className="mt-1"
+            />
             <p>
               I acknowledge the{" "}
               <Link to={APP_ROUTES.home} className="cursor-pointer font-medium text-[#7a5c00]">
@@ -84,8 +140,18 @@ const SignupPage = () => {
             </p>
           </div>
 
-          <button className="w-full rounded-md bg-gradient-to-r from-[#7a5c00] to-[#c9a227] py-3 font-semibold text-white shadow-md transition hover:opacity-90">
-            Initialize Account
+          {error && (
+            <p className={`rounded-md px-3 py-2 text-sm ${isDark ? "bg-red-950/40 text-red-200" : "bg-red-50 text-red-700"}`}>
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full rounded-md bg-gradient-to-r from-[#7a5c00] to-[#c9a227] py-3 font-semibold text-white shadow-md transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isSubmitting ? "Creating Account..." : "Initialize Account"}
           </button>
         </form>
 
