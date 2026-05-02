@@ -65,7 +65,7 @@ async def generate_chat_reply(message: str, history: list[ChatMessage]) -> str:
         "contents": _build_contents(message, history),
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 1000,
+            "maxOutputTokens": 4000,
         },
     }
     headers = {
