@@ -1,95 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 import { APP_ROUTES } from "../../constants/routes";
 import { useTheme } from "../../context/ThemeContext";
-
-function calcPatchAntenna({ freq, er, h }) {
-  const c = 3e8;
-  const f = freq * 1e9;
-  const lambda = c / f;
-  const W = (c / (2 * f)) * Math.sqrt(2 / (er + 1));
-  const erEff = (er + 1) / 2 + ((er - 1) / 2) * Math.pow(1 + (12 * h) / W, -0.5);
-  const deltaL =
-    (0.412 * h * ((erEff + 0.3) * (W / h + 0.264))) / ((erEff - 0.258) * (W / h + 0.8));
-  const L = c / (2 * f * Math.sqrt(erEff)) - 2 * deltaL;
-  const Zin = 90 * (er * er) / (er - 1) * Math.pow(lambda / (2 * W), 2);
-  const Z0 = 50;
-  const gamma = (Zin - Z0) / (Zin + Z0);
-  const S11_dB = 20 * Math.log10(Math.max(Math.abs(gamma), 1e-10));
-  const gain = 10 * Math.log10(((4 * Math.PI * W * L) / (lambda * lambda)) * 1.64);
-  const BW = ((3.77 * (er - 1)) / (er * er)) * (h / lambda) * 100;
-  const eff = 95 - 2 * er;
-  const f_r = c / (2 * L * Math.sqrt(erEff));
-
-  const s11Sweep = Array.from({ length: 40 }, (_, index) => {
-    const fi = f * 0.7 + (index / 39) * (f * 1.3 - f * 0.7);
-    const Zini = 90 * (er * er) / (er - 1) * Math.pow((c / fi) / (2 * W), 2);
-    const gi = (Zini - Z0) / (Zini + Z0);
-    const s11i = 20 * Math.log10(Math.max(Math.abs(gi), 1e-10));
-    return { f: (fi / 1e9).toFixed(3), s11: Math.max(s11i, -40) };
-  });
-
-  const pattern = Array.from({ length: 72 }, (_, index) => {
-    const theta = (index / 72) * 2 * Math.PI;
-    const thetaDeg = (theta * 180) / Math.PI;
-    return { theta, r: Math.pow(Math.abs(Math.cos((thetaDeg * Math.PI) / 180)), 1.5) };
-  });
-
-  return {
-    W: (W * 1e3).toFixed(2),
-    L: (L * 1e3).toFixed(2),
-    Zin: Zin.toFixed(1),
-    S11: S11_dB.toFixed(2),
-    gain: gain.toFixed(2),
-    BW: BW.toFixed(2),
-    eff: Math.min(Math.max(eff, 60), 98).toFixed(1),
-    f_r: (f_r / 1e9).toFixed(3),
-    s11Sweep,
-    pattern,
-    lambda_mm: (lambda * 1e3).toFixed(1),
-  };
-}
-
-function calcMetaSurface({ freq, er, h }) {
-  const c = 3e8;
-  const f = freq * 1e9;
-  const lambda = c / f;
-  const a = lambda / (2 * Math.sqrt(er));
-  const gap = a * 0.15;
-  const patch_w = a - gap;
-  const BW = 12 + 3 * (h / (lambda * 1e3));
-  const gain = 10 * Math.log10((8 * 8 * 4 * Math.PI * a * a) / (lambda * lambda));
-  const S11_dB = -18.5 - freq * 0.3;
-  const Zin = 45 + freq * 0.5;
-
-  const s11Sweep = Array.from({ length: 40 }, (_, index) => {
-    const fi = f * 0.6 + (index / 39) * (f * 1.4 - f * 0.6);
-    const norm = (fi - f) / (f * 0.15);
-    const s11i = -5 / (1 + norm * norm) - 13;
-    return { f: (fi / 1e9).toFixed(3), s11: Math.max(s11i, -35) };
-  });
-
-  const pattern = Array.from({ length: 72 }, (_, index) => {
-    const theta = (index / 72) * 2 * Math.PI;
-    const thetaDeg = (theta * 180) / Math.PI;
-    return { theta, r: Math.pow(Math.abs(Math.cos((thetaDeg * Math.PI) / 180)), 3) };
-  });
-
-  return {
-    W: (patch_w * 1e3).toFixed(2),
-    L: (patch_w * 1e3).toFixed(2),
-    Zin: Zin.toFixed(1),
-    S11: S11_dB.toFixed(2),
-    gain: gain.toFixed(2),
-    BW: BW.toFixed(2),
-    eff: "88.4",
-    f_r: freq.toFixed(3),
-    s11Sweep,
-    pattern,
-    unitCell_mm: (a * 1e3).toFixed(2),
-    lambda_mm: (lambda * 1e3).toFixed(1),
-  };
-}
+import { predictMetamaterial, predictPatchAntenna } from "../../services/api";
 
 function S11Chart({ data }) {
   const width = 320;
@@ -220,9 +133,13 @@ function ConfigPanel({ params, setParams, onRun, onReset, running, mode }) {
           { key: "h", label: "SUBSTRATE HEIGHT (mm)", min: 0.1, max: 10, step: 0.1 },
         ]
       : [
-          { key: "freq", label: "FREQUENCY (GHz)", min: 0.3, max: 100, step: 0.1 },
-          { key: "er", label: "DIELECTRIC CONSTANT", min: 1, max: 20, step: 0.1 },
-          { key: "h", label: "SUBSTRATE HEIGHT (mm)", min: 0.1, max: 10, step: 0.1 },
+          { key: "Wm", label: "Wm:", min: 0, step: 0.01 },
+          { key: "W0m", label: "W0m:", min: 0, step: 0.01 },
+          { key: "dm", label: "dm:", min: 0, step: 0.01 },
+          { key: "tm", label: "tm:", min: 0, step: 0.01 },
+          { key: "rows", label: "rows", min: 1, step: 1 },
+          { key: "Xa", label: "Xa:", step: 0.01 },
+          { key: "Ya", label: "Ya:", step: 0.01 },
         ];
 
   return (
@@ -232,10 +149,10 @@ function ConfigPanel({ params, setParams, onRun, onReset, running, mode }) {
         <h2 className="font-display text-xl font-bold text-stone-900">Configuration</h2>
       </div>
 
-      <div className="space-y-4">
+      <div className={mode === "meta" ? "space-y-3" : "space-y-4"}>
         {fields.map((field) => (
-          <label key={field.key} className="block">
-            <span className="mb-2 block text-[11px] font-semibold tracking-[0.18em] text-stone-400">
+          <label key={field.key} className={mode === "meta" ? "grid grid-cols-[76px,minmax(0,1fr)] items-center gap-3" : "block"}>
+            <span className={mode === "meta" ? "text-2xl font-bold leading-none text-stone-800" : "mb-2 block text-[11px] font-semibold tracking-[0.18em] text-stone-400"}>
               {field.label}
             </span>
             <input
@@ -247,7 +164,7 @@ function ConfigPanel({ params, setParams, onRun, onReset, running, mode }) {
               onChange={(event) =>
                 setParams((current) => ({ ...current, [field.key]: Number.parseFloat(event.target.value) || 0 }))
               }
-              className="w-full rounded-xl border border-stone-300 bg-[#F5F0E8] px-4 py-3 text-sm text-stone-700 outline-none transition focus:border-[#7A5C1E]"
+              className={mode === "meta" ? "h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-800 outline-none transition focus:border-[#7A5C1E]" : "w-full rounded-xl border border-stone-300 bg-[#F5F0E8] px-4 py-3 text-sm text-stone-700 outline-none transition focus:border-[#7A5C1E]"}
             />
           </label>
         ))}
@@ -298,44 +215,58 @@ export default function AntennaAnalyzerPage() {
   const [params, setParams] = useState({ freq: 2.4, er: 4.4, h: 1.6 });
   const [results, setResults] = useState(null);
   const [running, setRunning] = useState(false);
+  const [error, setError] = useState("");
   const [simId, setSimId] = useState("MW-8294-QUARTZ");
 
   const defaults = {
     patch: { freq: 2.4, er: 4.4, h: 1.6 },
-    meta: { freq: 5.8, er: 2.2, h: 0.8 },
+    meta: { Wm: 1, W0m: 1, dm: 1, tm: 1, rows: 4, Xa: 1, Ya: 1 },
   };
 
-  const runAnalysis = useCallback(() => {
-    if (!params.freq || !params.er || !params.h) {
+  const runAnalysis = useCallback(async () => {
+    const requiredKeys = mode === "patch" ? ["freq", "er", "h"] : ["Wm", "W0m", "dm", "tm", "rows", "Xa", "Ya"];
+    if (requiredKeys.some((key) => params[key] === "" || Number.isNaN(Number(params[key])))) {
       return;
     }
 
     setRunning(true);
+    setError("");
 
-    window.setTimeout(() => {
-      setResults(mode === "patch" ? calcPatchAntenna(params) : calcMetaSurface(params));
+    try {
+      if (mode === "patch") {
+        setResults(await predictPatchAntenna(params));
+      } else {
+        const prediction = await predictMetamaterial(params);
+        setResults({
+          gain: Number(prediction.gain).toFixed(3),
+          S11: Number(prediction.s11).toFixed(3),
+          BW: Number(prediction.bandwidth).toFixed(3),
+        });
+      }
       setRunning(false);
       setSimId(
         `MW-${Math.floor(1000 + Math.random() * 9000)}-${
           ["QUARTZ", "AMBER", "FERRO", "KAPPA"][Math.floor(Math.random() * 4)]
         }`,
       );
-    }, 900);
+    } catch (err) {
+      setRunning(false);
+      setResults(null);
+      setError(err.message || "Prediction failed.");
+    }
   }, [mode, params]);
-
-  useEffect(() => {
-    runAnalysis();
-  }, [runAnalysis]);
 
   const handleModeChange = (nextMode) => {
     setMode(nextMode);
     setParams(defaults[nextMode]);
     setResults(null);
+    setError("");
   };
 
   const handleReset = () => {
     setParams(defaults[mode]);
     setResults(null);
+    setError("");
   };
 
   const s11Good = results && Number.parseFloat(results.S11) < -10;
@@ -388,7 +319,9 @@ export default function AntennaAnalyzerPage() {
                 {mode === "patch" ? "Patch Antenna Analyser" : "MetaSurface Analyser"}
               </h1>
               <p className={`mt-3 max-w-2xl text-sm leading-7 md:text-base ${isDark ? "text-stone-300" : "text-stone-500"}`}>
-                Configure your study, run a quick calculation, and review key RF metrics with charts laid out for desktop and mobile.
+                {mode === "patch"
+                  ? "Configure your study, run a quick calculation, and review key RF metrics with charts laid out for desktop and mobile."
+                  : "Enter the metamaterial geometry values and use the trained ML models to predict Gain, S11, and Bandwidth."}
               </p>
             </header>
 
@@ -407,7 +340,7 @@ export default function AntennaAnalyzerPage() {
                   <div className={`mb-3 text-[11px] font-semibold tracking-[0.18em] ${isDark ? "text-stone-500" : "text-stone-400"}`}>WORKSPACE NOTES</div>
                   {mode === "patch"
                     ? "Patch mode is useful for resonance, bandwidth, and feed matching studies around a single target band."
-                    : "MetaSurface mode is better for unit-cell scaling, phase behavior, and gain-oriented wideband concepts."}
+                    : "Metamaterial mode uses your trained Colab models for direct Gain, S11, and Bandwidth prediction."}
                 </section>
               </div>
 
@@ -415,7 +348,9 @@ export default function AntennaAnalyzerPage() {
                 <div className={`mb-5 flex flex-col gap-3 rounded-3xl border p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between ${isDark ? "border-stone-800 bg-stone-900/60" : "border-stone-200 bg-white/60"}`}>
                   <div>
                     <h2 className={`font-display text-2xl font-bold ${isDark ? "text-stone-100" : "text-stone-900"}`}>Simulation Results</h2>
-                    <p className={`mt-1 text-sm ${isDark ? "text-stone-300" : "text-stone-500"}`}>Validated performance metrics and quick visual checks.</p>
+                    <p className={`mt-1 text-sm ${isDark ? "text-stone-300" : "text-stone-500"}`}>
+                      {mode === "patch" ? "Validated performance metrics and quick visual checks." : "ML-predicted outputs for the entered metamaterial antenna inputs."}
+                    </p>
                   </div>
                   <div className="inline-flex w-fit items-center gap-2 rounded-full bg-[#EDE4D0] px-4 py-2 text-xs font-bold tracking-[0.14em] text-[#7A5C1E]">
                     <span className={`h-2.5 w-2.5 rounded-full ${running ? "bg-amber-500" : "bg-green-600"}`} />
@@ -423,14 +358,28 @@ export default function AntennaAnalyzerPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <MetricCard label="S11 PARAMETER (dB)" value={results ? results.S11 : "—"} badge={results ? (s11Good ? "Optimal" : "Poor") : null} accent={s11Good} />
-                  <MetricCard label="MAXIMUM GAIN (dBi)" value={results ? results.gain : "—"} badge={results ? "Peak" : null} />
-                  <MetricCard label="BANDWIDTH (%)" value={results ? results.BW : "—"} badge={results ? "3dB" : null} />
-                  <MetricCard label="EFFICIENCY (%)" value={results ? results.eff : "—"} badge={results ? "Rad." : null} />
-                </div>
+                {error && (
+                  <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {error}
+                  </div>
+                )}
 
-                {results && (
+                {mode === "meta" ? (
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <MetricCard label="Gain" value={results ? results.gain : "—"} />
+                    <MetricCard label="S11 (dB)" value={results ? results.S11 : "—"} badge={results ? (s11Good ? "Optimal" : "Poor") : null} accent={s11Good} />
+                    <MetricCard label="Bandwidth" value={results ? results.BW : "—"} />
+                  </div>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <MetricCard label="S11 PARAMETER (dB)" value={results ? results.S11 : "—"} badge={results ? (s11Good ? "Optimal" : "Poor") : null} accent={s11Good} />
+                    <MetricCard label="MAXIMUM GAIN (dBi)" value={results ? results.gain : "—"} badge={results ? "Peak" : null} />
+                    <MetricCard label="BANDWIDTH (%)" value={results ? results.BW : "—"} badge={results ? "3dB" : null} />
+                    <MetricCard label="EFFICIENCY (%)" value={results ? results.eff : "—"} badge={results ? "Rad." : null} />
+                  </div>
+                )}
+
+                {mode === "patch" && results && (
                   <div className="mt-4 grid gap-4 md:grid-cols-3">
                     {[
                       {
@@ -451,7 +400,7 @@ export default function AntennaAnalyzerPage() {
                   </div>
                 )}
 
-                <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)]">
+                {mode === "patch" && <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)]">
                   <div className="rounded-3xl border border-stone-200 bg-[#FDFAF5] p-5">
                     <div className="mb-4 flex items-center justify-between">
                       <div className="text-[10px] font-semibold tracking-[0.18em] text-stone-400">REFLECTION COEFFICIENT</div>
@@ -479,9 +428,9 @@ export default function AntennaAnalyzerPage() {
                       </div>
                     )}
                   </div>
-                </div>
+                </div>}
 
-                {results && (
+                {mode === "patch" && results && (
                   <div className="mt-4 rounded-3xl border border-stone-200 bg-[#FDFAF5] p-5">
                     <div className="mb-4 text-[10px] font-semibold tracking-[0.18em] text-stone-400">PERFORMANCE SUMMARY</div>
                     <div className="flex flex-wrap gap-2">

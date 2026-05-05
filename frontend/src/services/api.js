@@ -68,3 +68,17 @@ export function updatePassword(data) {
     body: JSON.stringify(data),
   });
 }
+
+export function predictMetamaterial(data) {
+  return request("/metamaterial/predict", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function predictPatchAntenna(data) {
+  return request("/antenna/patch/predict", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}

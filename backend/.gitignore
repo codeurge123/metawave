@@ -5,5 +5,7 @@ __pycache__/
 *.db
 .env
 .venv/
+.venv*-backup/
+.venv-broken-path/
 venv/
 .pytest_cache/
