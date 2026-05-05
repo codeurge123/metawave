@@ -49,7 +49,7 @@ const SignupPage = () => {
 
   return (
     <div className={`relative flex min-h-screen items-center justify-center px-4 ${isDark ? "bg-[#140f0d]" : "bg-[#f5f2ea]"}`}>
-      <Link to={APP_ROUTES.home} className="absolute top-6 left-10 text-lg font-semibold text-[#7a5c00]">
+      <Link to={APP_ROUTES.home} className="absolute justify-center items-center top-6 left-10 text-lg font-semibold text-[#7a5c00]">
         MetaWave
       </Link>
 
@@ -163,14 +163,14 @@ const SignupPage = () => {
         </p>
       </div>
 
-      <div className={`absolute bottom-6 text-center text-xs ${isDark ? "text-stone-500" : "text-gray-400"}`}>
+      {/* <div className={`absolute bottom-6 text-center text-xs ${isDark ? "text-stone-500" : "text-gray-400"}`}>
         <div className="mb-2 flex justify-center gap-6">
           <Link to={APP_ROUTES.analysis}>API STATUS</Link>
           <Link to={APP_ROUTES.ai}>SECURITY</Link>
           <Link to={APP_ROUTES.login}>CONTACT</Link>
         </div>
         <p>© 2024 METAWAVE SYSTEMS. GOLDEN HOUR PRECISION.</p>
-      </div>
+      </div> */}
 
       <div className={`absolute right-10 bottom-10 select-none text-[120px] font-bold opacity-20 ${isDark ? "text-stone-700" : "text-gray-200"}`}>
         MW

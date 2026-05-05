@@ -117,14 +117,14 @@ const LoginPage = () => {
         </p>
       </div>
 
-      <div className={`mt-10 space-y-2 text-center text-xs ${isDark ? "text-stone-500" : "text-gray-400"}`}>
+      {/* <div className={`mt-10 space-y-2 text-center text-xs ${isDark ? "text-stone-500" : "text-gray-400"}`}>
         <p>© 2024 METAWAVE SYSTEMS. GOLDEN HOUR PRECISION.</p>
         <div className="flex justify-center gap-6">
           <Link to={APP_ROUTES.home}>PRIVACY</Link>
           <Link to={APP_ROUTES.analysis}>LEGAL</Link>
           <Link to={APP_ROUTES.ai}>SECURITY</Link>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };
