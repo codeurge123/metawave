@@ -94,20 +94,20 @@ const LoginPage = () => {
           </button>
         </form>
 
-        <div className="my-6 flex items-center">
+        {/* <div className="my-6 flex items-center">
           <div className={`h-px flex-1 ${isDark ? "bg-stone-700" : "bg-gray-200"}`}></div>
           <span className={`px-3 text-xs ${isDark ? "text-stone-500" : "text-gray-400"}`}>OR CONTINUE WITH</span>
           <div className={`h-px flex-1 ${isDark ? "bg-stone-700" : "bg-gray-200"}`}></div>
-        </div>
+        </div> */}
 
-        <button className={`flex w-full items-center justify-center gap-3 rounded-md border py-3 transition ${isDark ? "border-stone-700 hover:bg-stone-800" : "hover:bg-gray-50"}`}>
+        {/* <button className={`flex w-full items-center justify-center gap-3 rounded-md border py-3 transition ${isDark ? "border-stone-700 hover:bg-stone-800" : "hover:bg-gray-50"}`}>
           <img
             src="https://www.svgrepo.com/show/475656/google-color.svg"
             alt="google"
             className="h-5 w-5"
           />
           <span className="text-sm font-medium">Google</span>
-        </button>
+        </button> */}
 
         <p className={`mt-6 text-center text-sm ${isDark ? "text-stone-400" : "text-gray-500"}`}>
           New to the system?{" "}

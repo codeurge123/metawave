@@ -59,16 +59,16 @@ const SignupPage = () => {
           Experience the Aurelian Quartz precision.
         </p>
 
-        <button className={`mb-6 flex w-full items-center justify-center gap-3 rounded-md py-3 transition ${isDark ? "bg-stone-800 hover:bg-stone-700" : "bg-[#e8dfcf] hover:bg-[#ddd3be]"}`}>
+        {/* <button className={`mb-6 flex w-full items-center justify-center gap-3 rounded-md py-3 transition ${isDark ? "bg-stone-800 hover:bg-stone-700" : "bg-[#e8dfcf] hover:bg-[#ddd3be]"}`}>
           <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="h-5 w-5" alt="google" />
           <span className={`text-sm font-medium ${isDark ? "text-stone-200" : "text-gray-700"}`}>Continue with Google</span>
-        </button>
+        </button> */}
 
-        <div className="mb-6 flex items-center">
+        {/* <div className="mb-6 flex items-center">
           <div className={`h-px flex-1 ${isDark ? "bg-stone-700" : "bg-gray-200"}`}></div>
           <span className={`px-3 text-xs ${isDark ? "text-stone-500" : "text-gray-400"}`}>OR VIA EMAIL</span>
           <div className={`h-px flex-1 ${isDark ? "bg-stone-700" : "bg-gray-200"}`}></div>
-        </div>
+        </div> */}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
