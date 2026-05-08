@@ -4,73 +4,88 @@ import { APP_ROUTES } from "../../constants/routes";
 import { useTheme } from "../../context/ThemeContext";
 import { predictMetamaterial, predictPatchAntenna } from "../../services/api";
 
-function S11Chart({ data }) {
-  const width = 320;
-  const height = 160;
-  const pad = { t: 10, r: 10, b: 30, l: 40 };
+function LineChart({ data, valueKey, title, yLabel, stroke = "#2563EB", fill = "rgba(37, 99, 235, 0.12)" }) {
+  const width = 520;
+  const height = 240;
+  const pad = { t: 24, r: 16, b: 42, l: 58 };
   const chartWidth = width - pad.l - pad.r;
   const chartHeight = height - pad.t - pad.b;
-  const minS = Math.min(...data.map((point) => point.s11));
+  const values = data.map((point) => Number(point[valueKey]));
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const yMin = Math.floor(Math.min(minValue, 0) / 5) * 5;
+  const yMax = Math.ceil(Math.max(maxValue, 0) / 5) * 5 || 5;
   const minF = Number.parseFloat(data[0].f);
   const maxF = Number.parseFloat(data[data.length - 1].f);
 
   const xScale = (f) => ((Number.parseFloat(f) - minF) / (maxF - minF)) * chartWidth;
-  const yScale = (s) => chartHeight - ((s - minS) / (0 - minS)) * chartHeight;
+  const yScale = (value) => chartHeight - ((value - yMin) / (yMax - yMin)) * chartHeight;
 
   const pathD = data
-    .map((point, index) => `${index === 0 ? "M" : "L"}${pad.l + xScale(point.f)},${pad.t + yScale(point.s11)}`)
+    .map((point, index) => `${index === 0 ? "M" : "L"}${pad.l + xScale(point.f)},${pad.t + yScale(Number(point[valueKey]))}`)
     .join(" ");
+  const gridValues = [yMin, yMin + (yMax - yMin) / 2, yMax];
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
       <defs>
-        <linearGradient id="s11grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#7A5C1E" stopOpacity="0.35" />
-          <stop offset="100%" stopColor="#7A5C1E" stopOpacity="0.02" />
+        <linearGradient id={`lineFill-${valueKey}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={stroke} stopOpacity="0.02" />
         </linearGradient>
       </defs>
-      {[-10, -20, -30].map((value) => (
+      <text x={width / 2} y="14" textAnchor="middle" fontSize="13" fontWeight="700" fill="#1C1917">
+        {title}
+      </text>
+      {gridValues.map((value) => (
         <g key={value}>
           <line
             x1={pad.l}
             x2={pad.l + chartWidth}
             y1={pad.t + yScale(value)}
             y2={pad.t + yScale(value)}
-            stroke="#E5DDD0"
-            strokeWidth="0.5"
-            strokeDasharray={value === -10 ? "3 3" : "2 4"}
+            stroke="#C8C0B2"
+            strokeWidth="0.8"
           />
           <text x={pad.l - 4} y={pad.t + yScale(value) + 3} textAnchor="end" fontSize="7" fill="#A89880">
+            {value.toFixed(value % 1 === 0 ? 0 : 1)}
+          </text>
+        </g>
+      ))}
+      {[minF, Math.round((minF + maxF) / 2), maxF].map((value) => (
+        <g key={value}>
+          <line
+            x1={pad.l + xScale(value)}
+            x2={pad.l + xScale(value)}
+            y1={pad.t}
+            y2={pad.t + chartHeight}
+            stroke="#D9D2C8"
+            strokeWidth="0.7"
+          />
+          <text x={pad.l + xScale(value)} y={height - 15} textAnchor="middle" fontSize="8" fill="#78716C">
             {value}
           </text>
         </g>
       ))}
-      <path d={`${pathD} L${pad.l + chartWidth},${pad.t + chartHeight} L${pad.l},${pad.t + chartHeight} Z`} fill="url(#s11grad)" />
-      <path d={pathD} fill="none" stroke="#7A5C1E" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function RadiationPattern({ data }) {
-  const cx = 90;
-  const cy = 90;
-  const maxR = 75;
-  const pathD =
-    data
-      .map((point, index) => {
-        const r = point.r * maxR;
-        const x = cx + r * Math.cos(point.theta - Math.PI / 2);
-        const y = cy + r * Math.sin(point.theta - Math.PI / 2);
-        return `${index === 0 ? "M" : "L"}${x},${y}`;
-      })
-      .join(" ") + " Z";
-
-  return (
-    <svg viewBox="0 0 180 180" className="mx-auto w-full max-w-[220px]">
-      {[0.25, 0.5, 0.75, 1].map((radius) => (
-        <circle key={radius} cx={cx} cy={cy} r={radius * maxR} fill="none" stroke="#E5DDD0" strokeWidth="0.6" />
+      <path d={`${pathD} L${pad.l + chartWidth},${pad.t + chartHeight} L${pad.l},${pad.t + chartHeight} Z`} fill={fill} />
+      <path d={pathD} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" />
+      {data.map((point) => (
+        <circle
+          key={`${valueKey}-${point.f}`}
+          cx={pad.l + xScale(point.f)}
+          cy={pad.t + yScale(Number(point[valueKey]))}
+          r="3.2"
+          fill={stroke}
+          stroke="#FFFFFF"
+          strokeWidth="1"
+        />
       ))}
-      <path d={pathD} fill="rgba(122,92,30,0.12)" stroke="#7A5C1E" strokeWidth="1.5" strokeLinejoin="round" />
+      <text x={width / 2} y={height - 2} textAnchor="middle" fontSize="9" fill="#57534E">
+        Frequency (GHz)
+      </text>
+      <text x="12" y={height / 2} textAnchor="middle" fontSize="9" fill="#57534E" transform={`rotate(-90 12 ${height / 2})`}>
+        {yLabel}
+      </text>
     </svg>
   );
 }
@@ -128,9 +143,17 @@ function ConfigPanel({ params, setParams, onRun, onReset, running, mode }) {
   const fields =
     mode === "patch"
       ? [
-          { key: "freq", label: "FREQUENCY (GHz)", min: 0.3, max: 100, step: 0.1 },
-          { key: "er", label: "DIELECTRIC CONSTANT", min: 1, max: 20, step: 0.1 },
-          { key: "h", label: "SUBSTRATE HEIGHT (mm)", min: 0.1, max: 10, step: 0.1 },
+          { key: "Sub_W", label: "SUBSTRATE WIDTH", min: 0, step: 0.01 },
+          { key: "Sub_L", label: "SUBSTRATE LENGTH", min: 0, step: 0.01 },
+          { key: "Sub_H", label: "SUBSTRATE HEIGHT", min: 0, step: 0.01 },
+          { key: "Patch_W", label: "PATCH WIDTH", min: 0, step: 0.01 },
+          { key: "Patch_L", label: "PATCH LENGTH", min: 0, step: 0.01 },
+          { key: "Feed_W", label: "FEED WIDTH", min: 0, step: 0.01 },
+          { key: "Slot1_W", label: "SLOT1 WIDTH", min: 0, step: 0.01 },
+          { key: "Slot1_L", label: "SLOT1 LENGTH", min: 0, step: 0.01 },
+          { key: "Slot2_W", label: "SLOT2 WIDTH", min: 0, step: 0.01 },
+          { key: "Slot2_L", label: "SLOT2 LENGTH", min: 0, step: 0.01 },
+          { key: "Freq_GHz", label: "FREQUENCY", min: 0, step: 0.01 },
         ]
       : [
           { key: "Wm", label: "Wm:", min: 0, step: 0.01 },
@@ -149,11 +172,11 @@ function ConfigPanel({ params, setParams, onRun, onReset, running, mode }) {
         <h2 className="font-display text-xl font-bold text-stone-900">Configuration</h2>
       </div>
 
-      <div className={mode === "meta" ? "space-y-3" : "space-y-4"}>
+      <div className={mode === "meta" ? "space-y-3" : mode === "patch" ? "grid gap-3 sm:grid-cols-2" : "space-y-4"}>
         {fields.map((field) => (
           <label key={field.key} className={mode === "meta" ? "grid grid-cols-[76px,minmax(0,1fr)] items-center gap-3" : "block"}>
-            <span className={mode === "meta" ? "text-2xl font-bold leading-none text-stone-800" : "mb-2 block text-[11px] font-semibold tracking-[0.18em] text-stone-400"}>
-              {field.label}
+            <span className={mode === "meta" ? "text-2xl font-bold leading-none text-stone-800" : "mb-2 block text-[10px] font-semibold tracking-[0.12em] text-stone-400"}>
+              {field.label} {mode === "patch" ? `(${field.key === "Freq_GHz" ? "GHz" : "mm"})` : ""}
             </span>
             <input
               type="number"
@@ -212,19 +235,45 @@ function MetricCard({ label, value, badge, accent = false }) {
 export default function AntennaAnalyzerPage() {
   const { isDark } = useTheme();
   const [mode, setMode] = useState("patch");
-  const [params, setParams] = useState({ freq: 2.4, er: 4.4, h: 1.6 });
+  const [params, setParams] = useState({
+    Sub_W: 6.5,
+    Sub_L: 6.5,
+    Sub_H: 1.6,
+    Patch_W: 5.4,
+    Patch_L: 3.2,
+    Feed_W: 0.7,
+    Slot1_W: 0.35,
+    Slot1_L: 0.85,
+    Slot2_W: 0.3,
+    Slot2_L: 0.55,
+    Freq_GHz: 28,
+  });
   const [results, setResults] = useState(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [simId, setSimId] = useState("MW-8294-QUARTZ");
 
   const defaults = {
-    patch: { freq: 2.4, er: 4.4, h: 1.6 },
+    patch: {
+      Sub_W: 6.5,
+      Sub_L: 6.5,
+      Sub_H: 1.6,
+      Patch_W: 5.4,
+      Patch_L: 3.2,
+      Feed_W: 0.7,
+      Slot1_W: 0.35,
+      Slot1_L: 0.85,
+      Slot2_W: 0.3,
+      Slot2_L: 0.55,
+      Freq_GHz: 28,
+    },
     meta: { Wm: 1, W0m: 1, dm: 1, tm: 1, rows: 4, Xa: 1, Ya: 1 },
   };
 
   const runAnalysis = useCallback(async () => {
-    const requiredKeys = mode === "patch" ? ["freq", "er", "h"] : ["Wm", "W0m", "dm", "tm", "rows", "Xa", "Ya"];
+    const requiredKeys = mode === "patch"
+      ? ["Sub_W", "Sub_L", "Sub_H", "Patch_W", "Patch_L", "Feed_W", "Slot1_W", "Slot1_L", "Slot2_W", "Slot2_L", "Freq_GHz"]
+      : ["Wm", "W0m", "dm", "tm", "rows", "Xa", "Ya"];
     if (requiredKeys.some((key) => params[key] === "" || Number.isNaN(Number(params[key])))) {
       return;
     }
@@ -234,7 +283,12 @@ export default function AntennaAnalyzerPage() {
 
     try {
       if (mode === "patch") {
-        setResults(await predictPatchAntenna(params));
+        const prediction = await predictPatchAntenna(params);
+        setResults({
+          ...prediction,
+          gain: Number(prediction.gain).toFixed(4),
+          S11: Number(prediction.S11).toFixed(4),
+        });
       } else {
         const prediction = await predictMetamaterial(params);
         setResults({
@@ -372,25 +426,18 @@ export default function AntennaAnalyzerPage() {
                   </div>
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <MetricCard label="S11 PARAMETER (dB)" value={results ? results.S11 : "—"} badge={results ? (s11Good ? "Optimal" : "Poor") : null} accent={s11Good} />
-                    <MetricCard label="MAXIMUM GAIN (dBi)" value={results ? results.gain : "—"} badge={results ? "Peak" : null} />
-                    <MetricCard label="BANDWIDTH (%)" value={results ? results.BW : "—"} badge={results ? "3dB" : null} />
-                    <MetricCard label="EFFICIENCY (%)" value={results ? results.eff : "—"} badge={results ? "Rad." : null} />
+                    <MetricCard label="PREDICTED GAIN (dBi)" value={results ? results.gain : "—"} badge={results ? "ML" : null} />
+                    <MetricCard label="PREDICTED S11 (dB)" value={results ? results.S11 : "—"} badge={results ? (s11Good ? "Matched" : "Review") : null} accent={s11Good} />
                   </div>
                 )}
 
                 {mode === "patch" && results && (
-                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                  <div className="mt-4 grid gap-4 md:grid-cols-4">
                     {[
-                      {
-                        label: mode === "patch" ? "PATCH WIDTH × LENGTH (mm)" : "UNIT CELL PERIOD (mm)",
-                        value: mode === "patch" ? `${results.W} × ${results.L}` : results.unitCell_mm,
-                      },
-                      {
-                        label: mode === "patch" ? "RESONANT FREQ (GHz)" : "WAVELENGTH (mm)",
-                        value: mode === "patch" ? results.f_r : results.lambda_mm,
-                      },
-                      { label: "INPUT IMPEDANCE (Ω)", value: results.Zin },
+                      { label: "SUBSTRATE (mm)", value: `${params.Sub_W} × ${params.Sub_L} × ${params.Sub_H}` },
+                      { label: "PATCH (mm)", value: `${params.Patch_W} × ${params.Patch_L}` },
+                      { label: "SLOTS (mm)", value: `${params.Slot1_W} × ${params.Slot1_L} / ${params.Slot2_W} × ${params.Slot2_L}` },
+                      { label: "FREQUENCY (GHz)", value: params.Freq_GHz },
                     ].map((item) => (
                       <div key={item.label} className="rounded-2xl border border-stone-200 bg-[#FDFAF5] p-5">
                         <div className="text-[10px] font-semibold tracking-[0.18em] text-stone-400">{item.label}</div>
@@ -400,16 +447,15 @@ export default function AntennaAnalyzerPage() {
                   </div>
                 )}
 
-                {mode === "patch" && <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)]">
+                {mode === "patch" && <div className="mt-4 grid gap-4 xl:grid-cols-2">
                   <div className="rounded-3xl border border-stone-200 bg-[#FDFAF5] p-5">
                     <div className="mb-4 flex items-center justify-between">
-                      <div className="text-[10px] font-semibold tracking-[0.18em] text-stone-400">REFLECTION COEFFICIENT</div>
-                      <span className="text-sm text-stone-300">⛶</span>
+                      <div className="text-[10px] font-semibold tracking-[0.18em] text-stone-400">GAIN FREQUENCY SWEEP</div>
                     </div>
                     {results ? (
-                      <S11Chart data={results.s11Sweep} />
+                      <LineChart data={results.gainSweep} valueKey="gain" title="Predicted Gain vs Frequency" yLabel="Gain (dBi)" />
                     ) : (
-                      <div className="flex h-40 items-center justify-center text-sm text-stone-400">
+                      <div className="flex h-56 items-center justify-center text-sm text-stone-400">
                         {running ? "Computing..." : "Run analysis to see results"}
                       </div>
                     )}
@@ -417,13 +463,19 @@ export default function AntennaAnalyzerPage() {
 
                   <div className="rounded-3xl border border-stone-200 bg-[#FDFAF5] p-5">
                     <div className="mb-4 flex items-center justify-between">
-                      <div className="text-[10px] font-semibold tracking-[0.18em] text-stone-400">RADIATION PATTERN</div>
-                      <span className="text-sm text-stone-300">⛶</span>
+                      <div className="text-[10px] font-semibold tracking-[0.18em] text-stone-400">S11 FREQUENCY SWEEP</div>
                     </div>
                     {results ? (
-                      <RadiationPattern data={results.pattern} />
+                      <LineChart
+                        data={results.s11Sweep}
+                        valueKey="s11"
+                        title="Predicted S11 vs Frequency"
+                        yLabel="S11 (dB)"
+                        stroke="#B45309"
+                        fill="rgba(180, 83, 9, 0.12)"
+                      />
                     ) : (
-                      <div className="flex h-48 items-center justify-center text-sm text-stone-400">
+                      <div className="flex h-56 items-center justify-center text-sm text-stone-400">
                         {running ? "Computing..." : "Run analysis to see results"}
                       </div>
                     )}
@@ -435,10 +487,9 @@ export default function AntennaAnalyzerPage() {
                     <div className="mb-4 text-[10px] font-semibold tracking-[0.18em] text-stone-400">PERFORMANCE SUMMARY</div>
                     <div className="flex flex-wrap gap-2">
                       {[
-                        { label: "Impedance Match", ok: Number.parseFloat(results.S11) < -10 },
+                        { label: "S11 below -10 dB", ok: Number.parseFloat(results.S11) < -10 },
                         { label: "Gain Target (>5 dBi)", ok: Number.parseFloat(results.gain) > 5 },
-                        { label: "Bandwidth Adequate", ok: Number.parseFloat(results.BW) > 2 },
-                        { label: "High Efficiency", ok: Number.parseFloat(results.eff) > 85 },
+                        { label: "Frequency in sweep range", ok: Number(params.Freq_GHz) >= 1 && Number(params.Freq_GHz) <= 50 },
                       ].map((item) => (
                         <div
                           key={item.label}

@@ -1,66 +1,142 @@
-import math
+from functools import lru_cache
+import hashlib
+from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter
+import joblib
+import pandas as pd
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+
+MODEL_DIR = Path(__file__).resolve().parents[2] / "ml"
+PATCH_FEATURES = [
+    "Sub_W",
+    "Sub_L",
+    "Sub_H",
+    "Patch_W",
+    "Patch_L",
+    "Feed_W",
+    "Slot1_W",
+    "Slot1_L",
+    "Slot2_W",
+    "Slot2_L",
+    "Freq_GHz",
+]
+PATCH_SWEEP_FREQUENCIES = [1, 2, 4, 6, 10, 12, 26, 28, 30, 36, 37, 38, 40, 42, 46, 50]
 
 router = APIRouter(prefix="/antenna", tags=["antenna"])
 
 
 class PatchPredictionRequest(BaseModel):
-    freq: float
-    er: float
-    h: float
+    Sub_W: float
+    Sub_L: float
+    Sub_H: float
+    Patch_W: float
+    Patch_L: float
+    Feed_W: float
+    Slot1_W: float
+    Slot1_L: float
+    Slot2_W: float
+    Slot2_L: float
+    Freq_GHz: float
 
 
-@router.post("/patch/predict")
-def predict_patch_antenna(payload: PatchPredictionRequest) -> dict:
-    c = 3e8
-    f = payload.freq * 1e9
-    h_m = payload.h / 1e3
-    lambda_m = c / f
-    w = (c / (2 * f)) * math.sqrt(2 / (payload.er + 1))
-    er_eff = (payload.er + 1) / 2 + ((payload.er - 1) / 2) * pow(1 + (12 * h_m) / w, -0.5)
-    delta_l = (
-        0.412
-        * h_m
-        * ((er_eff + 0.3) * (w / h_m + 0.264))
-        / ((er_eff - 0.258) * (w / h_m + 0.8))
+class PatchPredictionResponse(BaseModel):
+    gain: float
+    S11: float
+    gainSweep: list[dict[str, float]]
+    s11Sweep: list[dict[str, float]]
+    features: list[str]
+
+
+class PatchModelStatus(BaseModel):
+    gain_model: str
+    gain_sha256: Optional[str]
+    s11_model: str
+    s11_sha256: Optional[str]
+    features: list[str]
+
+
+@lru_cache
+def load_patch_models() -> tuple[object, object]:
+    gain_model_path = MODEL_DIR / "patch_gain_model.pkl"
+    s11_model_path = MODEL_DIR / "patch_s11_model.pkl"
+
+    if not gain_model_path.exists():
+        raise FileNotFoundError(f"Missing model at {gain_model_path}")
+    if not s11_model_path.exists():
+        raise FileNotFoundError(f"Missing model at {s11_model_path}")
+
+    return joblib.load(gain_model_path), joblib.load(s11_model_path)
+
+
+def file_sha256(path: Path) -> Optional[str]:
+    if not path.exists():
+        return None
+
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def payload_to_frame(payload: PatchPredictionRequest) -> pd.DataFrame:
+    return pd.DataFrame([{feature: getattr(payload, feature) for feature in PATCH_FEATURES}], columns=PATCH_FEATURES)
+
+
+def build_frequency_sweep(payload: PatchPredictionRequest) -> pd.DataFrame:
+    base_row = {feature: getattr(payload, feature) for feature in PATCH_FEATURES}
+    rows = []
+    for frequency in PATCH_SWEEP_FREQUENCIES:
+        row = {**base_row, "Freq_GHz": float(frequency)}
+        rows.append(row)
+    return pd.DataFrame(rows, columns=PATCH_FEATURES)
+
+
+@router.get("/patch/model-status", response_model=PatchModelStatus)
+def patch_model_status() -> PatchModelStatus:
+    gain_model_path = MODEL_DIR / "patch_gain_model.pkl"
+    s11_model_path = MODEL_DIR / "patch_s11_model.pkl"
+
+    return PatchModelStatus(
+        gain_model=str(gain_model_path),
+        gain_sha256=file_sha256(gain_model_path),
+        s11_model=str(s11_model_path),
+        s11_sha256=file_sha256(s11_model_path),
+        features=PATCH_FEATURES,
     )
-    length = c / (2 * f * math.sqrt(er_eff)) - 2 * delta_l
-    zin = 90 * (payload.er * payload.er) / (payload.er - 1) * pow(lambda_m / (2 * w), 2)
-    z0 = 50
-    gamma = (zin - z0) / (zin + z0)
-    s11_db = 20 * math.log10(max(abs(gamma), 1e-10))
-    gain = 10 * math.log10(((4 * math.pi * w * length) / (lambda_m * lambda_m)) * 1.64)
-    bandwidth = ((3.77 * (payload.er - 1)) / (payload.er * payload.er)) * (h_m / lambda_m) * 100
-    efficiency = 95 - 2 * payload.er
-    resonant_frequency = c / (2 * length * math.sqrt(er_eff))
 
-    s11_sweep = []
-    for index in range(40):
-        fi = f * 0.7 + (index / 39) * (f * 1.3 - f * 0.7)
-        zini = 90 * (payload.er * payload.er) / (payload.er - 1) * pow((c / fi) / (2 * w), 2)
-        gi = (zini - z0) / (zini + z0)
-        s11i = 20 * math.log10(max(abs(gi), 1e-10))
-        s11_sweep.append({"f": f"{fi / 1e9:.3f}", "s11": max(s11i, -40)})
 
-    pattern = []
-    for index in range(72):
-        theta = (index / 72) * 2 * math.pi
-        theta_deg = (theta * 180) / math.pi
-        pattern.append({"theta": theta, "r": pow(abs(math.cos((theta_deg * math.pi) / 180)), 1.5)})
+@router.post("/patch/predict", response_model=PatchPredictionResponse)
+def predict_patch_antenna(payload: PatchPredictionRequest) -> PatchPredictionResponse:
+    try:
+        gain_model, s11_model = load_patch_models()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Patch antenna ML models are not available: {exc}") from exc
 
-    return {
-        "W": f"{w * 1e3:.2f}",
-        "L": f"{length * 1e3:.2f}",
-        "Zin": f"{zin:.1f}",
-        "S11": f"{s11_db:.2f}",
-        "gain": f"{gain:.2f}",
-        "BW": f"{bandwidth:.2f}",
-        "eff": f"{min(max(efficiency, 60), 98):.1f}",
-        "f_r": f"{resonant_frequency / 1e9:.3f}",
-        "s11Sweep": s11_sweep,
-        "pattern": pattern,
-        "lambda_mm": f"{lambda_m * 1e3:.1f}",
-    }
+    input_df = payload_to_frame(payload)
+    sweep_df = build_frequency_sweep(payload)
+
+    try:
+        predicted_gain = float(gain_model.predict(input_df)[0])
+        predicted_s11 = float(s11_model.predict(input_df)[0])
+        gain_sweep = gain_model.predict(sweep_df)
+        s11_sweep = s11_model.predict(sweep_df)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Patch antenna prediction failed: {exc}") from exc
+
+    return PatchPredictionResponse(
+        gain=round(predicted_gain, 4),
+        S11=round(predicted_s11, 4),
+        gainSweep=[
+            {"f": float(frequency), "gain": round(float(gain), 4)}
+            for frequency, gain in zip(PATCH_SWEEP_FREQUENCIES, gain_sweep)
+        ],
+        s11Sweep=[
+            {"f": float(frequency), "s11": round(float(s11), 4)}
+            for frequency, s11 in zip(PATCH_SWEEP_FREQUENCIES, s11_sweep)
+        ],
+        features=PATCH_FEATURES,
+    )
