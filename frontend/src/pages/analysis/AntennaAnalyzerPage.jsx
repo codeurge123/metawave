@@ -5,15 +5,16 @@ import { useTheme } from "../../context/ThemeContext";
 import { predictMetamaterial, predictPatchAntenna } from "../../services/api";
 
 function LineChart({ data, valueKey, title, yLabel, stroke = "#2563EB", fill = "rgba(37, 99, 235, 0.12)" }) {
+  const [activeIndex, setActiveIndex] = useState(null);
   const width = 520;
   const height = 240;
-  const pad = { t: 24, r: 16, b: 42, l: 58 };
+  const pad = { t: 30, r: 20, b: 44, l: 60 };
   const chartWidth = width - pad.l - pad.r;
   const chartHeight = height - pad.t - pad.b;
   const values = data.map((point) => Number(point[valueKey]));
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
-  const yMin = Math.floor(Math.min(minValue, 0) / 5) * 5;
+  const yMin = Math.floor(Math.min(minValue, valueKey === "s11" ? -10 : 0) / 5) * 5;
   const yMax = Math.ceil(Math.max(maxValue, 0) / 5) * 5 || 5;
   const minF = Number.parseFloat(data[0].f);
   const maxF = Number.parseFloat(data[data.length - 1].f);
@@ -21,13 +22,45 @@ function LineChart({ data, valueKey, title, yLabel, stroke = "#2563EB", fill = "
   const xScale = (f) => ((Number.parseFloat(f) - minF) / (maxF - minF)) * chartWidth;
   const yScale = (value) => chartHeight - ((value - yMin) / (yMax - yMin)) * chartHeight;
 
-  const pathD = data
-    .map((point, index) => `${index === 0 ? "M" : "L"}${pad.l + xScale(point.f)},${pad.t + yScale(Number(point[valueKey]))}`)
+  const points = data.map((point) => ({
+    f: Number(point.f),
+    value: Number(point[valueKey]),
+    x: pad.l + xScale(point.f),
+    y: pad.t + yScale(Number(point[valueKey])),
+  }));
+  const pathD = points
+    .map((point, index) => {
+      if (index === 0) {
+        return `M${point.x},${point.y}`;
+      }
+      const previous = points[index - 1];
+      const midX = (previous.x + point.x) / 2;
+      return `C${midX},${previous.y} ${midX},${point.y} ${point.x},${point.y}`;
+    })
     .join(" ");
   const gridValues = [yMin, yMin + (yMax - yMin) / 2, yMax];
+  const activePoint = activeIndex === null ? null : points[activeIndex];
+  const tooltipX = activePoint ? Math.min(Math.max(activePoint.x - 48, pad.l), width - 110) : 0;
+  const tooltipY = activePoint ? Math.max(activePoint.y - 48, pad.t + 4) : 0;
+
+  const handlePointerMove = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const pointerX = ((event.clientX - rect.left) / rect.width) * width;
+    const nearestIndex = points.reduce((nearest, point, index) => {
+      const nearestDistance = Math.abs(points[nearest].x - pointerX);
+      const pointDistance = Math.abs(point.x - pointerX);
+      return pointDistance < nearestDistance ? index : nearest;
+    }, 0);
+    setActiveIndex(nearestIndex);
+  };
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="w-full cursor-crosshair"
+      onPointerMove={handlePointerMove}
+      onPointerLeave={() => setActiveIndex(null)}
+    >
       <defs>
         <linearGradient id={`lineFill-${valueKey}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={stroke} stopOpacity="0.22" />
@@ -37,6 +70,7 @@ function LineChart({ data, valueKey, title, yLabel, stroke = "#2563EB", fill = "
       <text x={width / 2} y="14" textAnchor="middle" fontSize="13" fontWeight="700" fill="#1C1917">
         {title}
       </text>
+      <rect x={pad.l} y={pad.t} width={chartWidth} height={chartHeight} rx="6" fill="#FFFFFF" stroke="#E7E0D4" />
       {gridValues.map((value) => (
         <g key={value}>
           <line
@@ -68,18 +102,47 @@ function LineChart({ data, valueKey, title, yLabel, stroke = "#2563EB", fill = "
         </g>
       ))}
       <path d={`${pathD} L${pad.l + chartWidth},${pad.t + chartHeight} L${pad.l},${pad.t + chartHeight} Z`} fill={fill} />
-      <path d={pathD} fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round" />
-      {data.map((point) => (
+      <path d={pathD} fill="none" stroke={stroke} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      {valueKey === "s11" && (
+        <g>
+          <line
+            x1={pad.l}
+            x2={pad.l + chartWidth}
+            y1={pad.t + yScale(-10)}
+            y2={pad.t + yScale(-10)}
+            stroke="#DC2626"
+            strokeWidth="1.4"
+            strokeDasharray="6 5"
+          />
+          <text x={pad.l + chartWidth - 4} y={pad.t + yScale(-10) - 4} textAnchor="end" fontSize="8" fontWeight="700" fill="#DC2626">
+            -10 dB threshold
+          </text>
+        </g>
+      )}
+      {points.map((point, index) => (
         <circle
           key={`${valueKey}-${point.f}`}
-          cx={pad.l + xScale(point.f)}
-          cy={pad.t + yScale(Number(point[valueKey]))}
-          r="3.2"
+          cx={point.x}
+          cy={point.y}
+          r={activeIndex === index ? "5" : "3.2"}
           fill={stroke}
           stroke="#FFFFFF"
-          strokeWidth="1"
+          strokeWidth="1.4"
         />
       ))}
+      {activePoint && (
+        <g>
+          <line x1={activePoint.x} x2={activePoint.x} y1={pad.t} y2={pad.t + chartHeight} stroke={stroke} strokeOpacity="0.35" strokeDasharray="4 4" />
+          <circle cx={activePoint.x} cy={activePoint.y} r="7" fill="none" stroke={stroke} strokeOpacity="0.35" strokeWidth="3" />
+          <rect x={tooltipX} y={tooltipY} width="108" height="40" rx="7" fill="#1C1917" opacity="0.94" />
+          <text x={tooltipX + 10} y={tooltipY + 16} fontSize="9" fill="#F5F5F4">
+            {activePoint.f} GHz
+          </text>
+          <text x={tooltipX + 10} y={tooltipY + 31} fontSize="10" fontWeight="700" fill="#FFFFFF">
+            {activePoint.value.toFixed(4)} {valueKey === "gain" ? "dBi" : "dB"}
+          </text>
+        </g>
+      )}
       <text x={width / 2} y={height - 2} textAnchor="middle" fontSize="9" fill="#57534E">
         Frequency (GHz)
       </text>
@@ -235,18 +298,21 @@ function MetricCard({ label, value, badge, accent = false }) {
 export default function AntennaAnalyzerPage() {
   const { isDark } = useTheme();
   const [mode, setMode] = useState("patch");
+  const patchDefaults = {
+    Sub_W: 0,
+    Sub_L: 0,
+    Sub_H: 0,
+    Patch_W: 0,
+    Patch_L: 0,
+    Feed_W: 0,
+    Slot1_W: 0,
+    Slot1_L: 0,
+    Slot2_W: 0,
+    Slot2_L: 0,
+    Freq_GHz: 0,
+  };
   const [params, setParams] = useState({
-    Sub_W: 6.5,
-    Sub_L: 6.5,
-    Sub_H: 1.6,
-    Patch_W: 5.4,
-    Patch_L: 3.2,
-    Feed_W: 0.7,
-    Slot1_W: 0.35,
-    Slot1_L: 0.85,
-    Slot2_W: 0.3,
-    Slot2_L: 0.55,
-    Freq_GHz: 28,
+    ...patchDefaults,
   });
   const [results, setResults] = useState(null);
   const [running, setRunning] = useState(false);
@@ -254,19 +320,7 @@ export default function AntennaAnalyzerPage() {
   const [simId, setSimId] = useState("MW-8294-QUARTZ");
 
   const defaults = {
-    patch: {
-      Sub_W: 6.5,
-      Sub_L: 6.5,
-      Sub_H: 1.6,
-      Patch_W: 5.4,
-      Patch_L: 3.2,
-      Feed_W: 0.7,
-      Slot1_W: 0.35,
-      Slot1_L: 0.85,
-      Slot2_W: 0.3,
-      Slot2_L: 0.55,
-      Freq_GHz: 28,
-    },
+    patch: patchDefaults,
     meta: { Wm: 1, W0m: 1, dm: 1, tm: 1, rows: 4, Xa: 1, Ya: 1 },
   };
 
